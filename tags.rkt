@@ -52,6 +52,10 @@
                  (+ (* (getYear time) (expt 10 8))  (* (getMonth time) (expt 10 6)) 
                     (* (getDay time)  (expt 10 4))  (* (getHour time) (expt 10 2)) (getMin time))))
 
+(define timeEq? (lambda (time1 time2)
+                  (if (null? time1) #t
+                      (and (eq? (car time1) (car time2)) (timeEq? (cdr time1) (cdr time2))))))
+
 (define getYear second)
 (define getMonth third)
 (define getDay fourth)
@@ -62,6 +66,7 @@
 (define time1 (createTime 2015 1 1 0 0))
 (define time2 (createTime 2014 12 31 23 59))
 (nrTime time)
+(timeEq? time time1)
 
 (< (nrTime time1) (nrTime time2))
 
@@ -69,12 +74,36 @@
 
 (define createAppointment (lambda (text startTime endTime)
                             (if(or (not (string? text))(string? startTime) (string? endTime)) "ERROR:Somethings not right"
-                            (list text startTime endTime))))
+                            (list 'appointment text startTime endTime))))
 
-(define app1 (createAppointment "haterKing" (createTime -1 11 11 11 11) time))
-  
-;;;CALENDAR 
+(define app1 (createAppointment "haterKing" (createTime 2015 11 11 11 11) time))
 
+(define appEq? (lambda (app1 app2)
+                 (and (eq? (getText app1) (getText app2))
+                      (timeEq? (getStartTime app1) (getStartTime app2))
+                      (timeEq? (getEndTime app1 ) (getEndTime app2)))))
+
+
+(define getText second)
+(define getStartTime third)
+(define getEndTime fourth)
+(appEq? app1 (createAppointment "haterKing" (createTime 2015 11 11 11 11) time))  
+;;;CALENDAR
 
 (define createCalendar  (lambda r
                           (append (list 'calendar ) r)))
+
+(define addToCal (lambda (calendar . r)
+                   (append calendar r)))
+
+;;tail recurvsei
+(define removeFromCal (lambda (calendar . toRemove)
+                        (removeFromCalH calendar toRemove '())))
+
+;;Not DONE!!
+(define removeFromCalH (lambda (calendar removeLst res)
+                         res))
+(define calendar1 (createCalendar app1 app1 app1))
+
+(addToCal calendar1 app1)
+
