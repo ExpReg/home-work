@@ -65,7 +65,6 @@
 (define time (createTime 999 12 31 14 15))
 (define time1 (createTime 2015 1 1 0 0))
 (define time2 (createTime 2014 12 31 23 59))
-
 ;;; APPOINTMENT
 
 (define createAppointment (lambda (text startTime endTime)
@@ -83,24 +82,11 @@
 (define isApp? (lambda(app)
                  (eq? (car app) 'appointment)))
 
-(define appointment-overlap? (lambda (app1 app2)
-                               (let* ((start1 (nrTime (getStartTime app1)))
-                                     (start2 (nrTime (getStartTime app2)))
-                                     (end1   (nrTime (getEndTime app1)))
-                                     (end2   (nrTime (getEndTime app2)))
-                                     (p      (< end1 start2))
-                                     (q      (< end2 start1)))
-                                 (and (or p q) (not (and p q)))))) 
 
 (define getText second)
 (define getStartTime third)
 (define getEndTime fourth)
 
-(define before (lambda (app1 app2)
-                 (< (nrTime (getStartTime app1)) (nrTime (getStartTime app2)))))
-
-(define afterOrEq (lambda (app1 app2)
-                    (not (before app1 app2))))
 
 ;;;CALENDAR
 
@@ -124,43 +110,27 @@
                                ((isCalendar? (car cal)) (removeFromCalH (cdr cal) removeLst (cons (removeFromCalH (car cal) removeLst '()) res)))
                                (else (removeFromCalH (cdr cal) removeLst res)))))
 
+;; can flatten 
+(define find-appointment (lambda (cal pred)
+                           (let ((flat-cal (flatten-calendar cal)))
+                           (filter (lambda(x) (pred x)) (cdr flat-cal)))))
+;;can flatten 
+(define generic-finder (lambda (version)
+                         (lambda(cal pred)
+                           (let((filtered-cal (find-appointment cal pred)))
+                             (if(null? filtered-cal) #f
+                                (generic-finderH (cdr cal) version (car cal)))))))
 
+(define generic-finderH (lambda (cal version app)
+                          (cond ((null? cal) app)
+                                ((version (car cal) (app)) (generic-finderH (cdr cal) version (car cal)))
+                                (else (generic-finderH (cdr cal) version app)))))
 
 (define flatten-calendar (lambda (cal)
                            (cond ((null? cal) '())
                                  ((symbol? (car cal)) (flatten-calendar (cdr cal)))
                                  ((isApp? (car cal)) (cons (car cal) (flatten-calendar (cdr cal))))
                                  (else (append (flatten-calendar (car cal) ) (flatten-calendar (cdr cal)))))))
-
-;;;FIND APPOINTMENTS can flatten, is tail-recursive 
-(define find-appointment (lambda (cal pred)
-                           (let ((flat-cal (flatten-calendar cal)))
-                           (filter (lambda(x) (pred x)) (cdr flat-cal)))))
-
-
-(define generic-finder (lambda (version)
-                         (lambda(cal pred)
-                           (let((filtered-cal (find-appointment cal pred)))
-                             (if(null? filtered-cal) #f
-                                (generic-finderH filtered-cal version (car filtered-cal)))))))
-
-(define generic-finderH (lambda (cal version app)
-                          (cond ((null? cal) app)
-                                ((version (car cal) app) (generic-finderH (cdr cal) version (car cal)))
-                                (else (generic-finderH (cdr cal) version app)))))
-
-
-(define find-first-appointment (generic-finder before))
-(define find-last-appointment (generic-finder afterOrEq))
-
-(define calendars-overlap? (lambda (cal1 cal2)
-                      (calendars-overlapH? (flatten-calendar cal1) (flatten-calendar cal2))))
-
-(define calendars-overlapH? (lambda (cal1 cal2)
-                             (cond ((null? cal1) #t)
-                                   ((null?(find-appointment cal2 (lambda (x)(appointment-overlap? (car cal1) x))))(calendars-overlapH? (cdr cal1) cal2))
-                                   (else #f))))
-                                
 
 (define appIn (lambda(x lst)
              (if(null? lst) #t
@@ -169,5 +139,8 @@
 (define calendar1 (createCalendar app1 app1 app2))
 (define calendar2 (createCalendar calendar1 app2))
 
-(find-first-appointment calendar1 (lambda(x) (or (appEq? app1 x) (appEq? app2 x))))
-(find-last-appointment calendar1 (lambda(x) #f))
+(define rmvList (list app1))
+(addToCal calendar1 app2)
+(removeFromCal calendar1 app1)
+(flatten-calendar calendar2)
+(find-appointment calendar2 (lambda(x) (appEq? x app1)))
