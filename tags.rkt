@@ -3,34 +3,6 @@
 
 (define skipSymbol cdr)
 
-;; HTML STUFF 
-(define tg (lambda (head) 
-             (lambda r
-                 (string-append "<" head (findAttribute r)">" (findContent r) "</" head ">"))))
-
-(define single-tag (lambda (head)
-                     (lambda r
-                       (string-append (findContent r) "<" head ">"))))
-(define findContent (lambda (lst)
-                      (cond ((null? lst) "")
-                            ((string? (car lst)) (string-append (car lst) (findContent (cdr lst))))
-                            ((procedure? (car lst)) (string-append ((car lst)) (findContent (cdr lst))))
-                            ((list? (car lst)) (string-append (findContent (car lst)) (findContent (cdr lst))))
-                            (else (findContent (list-tail lst 2))))))
-                        
-(define findAttribute (lambda (lst)
-                        (cond ((null? lst) "")
-                               ((symbol? (car lst)) (string-append " " ( symbol->string(car lst)) "=" (cadr lst) (findAttribute (list-tail lst 2))))
-                               (else (findAttribute (cdr lst))))))
-
-(define table (tg "table"))
-(define tr (tg "tr"))
-(define td (tg "td"))
-(define html(tg "html"))
-(define body (tg "body"))
-(define htmltable (tg "table"))
-(define b (tg "b"))
-(define br(single-tag "br"))
 ;;;;;;;;;
 ;;;
 ;;;
@@ -45,17 +17,18 @@
 ;Minutes (min) : cannot be lower than 0 or >= 60 
 (define createTime (lambda (year month day hour min)
                      (let ((lst (list 'time year month day hour min)))
-                     (cond ((not(checkYear? year)) (error "Error in year format"))
-                           ((not(checkMonth? month)) (error "Error in month format"))
-                           ((not(checkDay? day)) (error "Error in day format"))
-                           ((not(checkHour? hour)) (error "Error in hour format"))
-                           ((not(checkMin? min)) (error "Error in min format"))
-                           ((not(check-month-day? day month)) (error "Month do not support that many days"))
-                           (else lst)))))
+                       (cond ((not(checkYear? year)) (error "Error in year format"))
+                             ((not(checkMonth? month)) (error "Error in month format"))
+                             ((not(checkDay? day)) (error "Error in day format"))
+                             ((not(checkHour? hour)) (error "Error in hour format"))
+                             ((not(checkMin? min)) (error "Error in min format"))
+                             ((not(checkMonthDay? day month)) (error "Month do not support that many days"))
+                             (else lst)))))
 
 
 (define isTime (lambda (time)
                  (eq? (car time) 'time)))
+
 (define checkYear?  (lambda (year)
                      (>= year 0)))
 
@@ -71,12 +44,18 @@
 (define checkMin?   (lambda (min) 
                       (and (>= min 0 ) (< min 60 ))))
 
-(define check-month-day? (lambda (day month)
+(define checkMonthDay? (lambda (day month)
                           (cond ((and (<= month 7) (= (modulo month 2) 0)) (not (= day 31)))
                                 ((and (> month 7 ) (= (modulo month 2) 1)) (not (= day 31)))
                                 (else #t))))
 
-;used when comparing times 
+(define getYear second)
+(define getMonth third)
+(define getDay fourth)
+(define getHour fifth)
+(define getMin sixth)
+
+;; TIME COMPARISON FUNCTIONS 
 (define nrTime (lambda (time)
                  (+ (* (getYear time) (expt 10 8))  (* (getMonth time) (expt 10 6)) 
                     (* (getDay time)  (expt 10 4))  (* (getHour time) (expt 10 2)) (getMin time))))
@@ -85,10 +64,21 @@
                   (if (null? time1) #t
                       (and (eq? (car time1) (car time2)) (timeEq? (cdr time1) (cdr time2))))))
 
-;;Does not use hour or min
-(define time->string(lambda (time)
-                      (string-append (number->string (getDay time)) "-" (number->string (getMonth time)) "-" (number->string (getYear time)))))
+(define generic-timeCheck (lambda (pred)
+                            (lambda (time1 time2)
+                              (pred (nrTime time1) (nrTime time2)))))
 
+(define before (generic-timeCheck <))
+(define after  (generic-timeCheck >))
+(define same   (generic-timeCheck =))
+(define before-or-same (generic-timeCheck <=))
+(define after-or-same (generic-timeCheck >=))
+
+(define same-day (lambda (time1 time2)
+                  (= (getDay time1) (getDay time2))))
+
+
+;;MISC (used for the presentation)
 (define next-date (lambda (time)
                     (let ((month (getMonth time))
                           (day (getDay time))
@@ -112,28 +102,23 @@
                      (if (= counter 0) time
                          (next-weekH(next-date time) (- counter 1)))))
                         
-(define generic-timeCheck (lambda (pred)
-                            (lambda (time1 time2)
-                              (pred (nrTime time1) (nrTime time2)))))
-
-(define before (generic-timeCheck <))
-(define after  (generic-timeCheck >))
-(define same   (generic-timeCheck =))
-(define same-day (lambda (time1 time2)
-                  (= (getDay time1) (getDay time2))))
 
 
-(define getYear second)
-(define getMonth third)
-(define getDay fourth)
-(define getHour fifth)
-(define getMin sixth)
+
+;;Does not use hour or min
+(define time->string(lambda (time)
+                      (string-append (number->string (getDay time)) "-" (number->string (getMonth time)) "-" (number->string (getYear time)))))
+
 (define hour-min->string (lambda (time)
                            (letrec ((min-handler (lambda(t) (if(< (getMin t) 10)(string-append "0" (number->string(getMin t)))
                                                                (number->string(getMin t)))))
                                     (hour-handler (lambda(t) (if(< (getHour t) 10) (string-append "0" (number->string (getHour t)))
                                                                 (number->string(getHour t))))))
                            (string-append (hour-handler time) ":" (min-handler time)))))
+
+
+
+
 (define time (createTime 999 12 31 14 15))
 (define time1 (createTime 2015 1 1 0 0))
 (define time2 (createTime 2014 12 31 23 59))
@@ -145,6 +130,7 @@
 ;;;
 ;;;;;;;;;
 
+;;FORMAL (create an checks)
 (define createAppointment (lambda (text startTime endTime)
                             (cond ((not(string? text)) (error "The first parameter should be a string"))
                                   ((not(isTime startTime)) (error "The second paramter should be a time"))
@@ -152,6 +138,11 @@
                                   ((before endTime startTime) (error "startTime should be before endtime"))
                                   ((not (same-day startTime endTime)) (error "an appointment can only last a day"))
                                   (else (list 'appointment text startTime endTime)))))
+
+(define getText second)
+(define getStartTime third)
+(define getEndTime fourth)
+
                            
                           
 (define appEq? (lambda (app1 app2)
@@ -167,6 +158,7 @@
                     (eq? (car app) 'appointment)))))
 
 
+;;;Comparison functions 
 (define appointment-overlap? (lambda (app1 app2)
                                (let* ((start1 (nrTime (getStartTime app1)))
                                      (start2 (nrTime (getStartTime app2)))
@@ -176,9 +168,6 @@
                                      (q      (< end2 start1)))
                                  (not (and (or p q) (not (and p q))))))) ;; exclusive or 
 
-(define getText second)
-(define getStartTime third)
-(define getEndTime fourth)
 
 
 (define appointment-timeCheck (lambda (pred)
@@ -189,6 +178,8 @@
 (define appointment-after (appointment-timeCheck after))
 (define appointment-same (appointment-timeCheck same))
 
+
+;;MISC mostly presentation 
 (define appointment->string (lambda (app)
                               (string-append (getText app) "(" (hour-min->string (getStartTime app)) "-" (hour-min->string(getEndTime app)) ")")))
 
@@ -206,38 +197,60 @@
                                (error "something in the list was not a calendar or an appointment")))))
 
 
-(define addToCal (lambda (calendar . app)
-                   (append calendar app)))
+(define checkCal (lambda(cal)
+                   (if(not (isCalendar? cal)) (error "not a calendar")
+                      cal)))
 
 (define isCalendar? (lambda (cal)
                       (if(not (list? cal)) #f
                               (if(not(symbol? (car cal))) #f
-                                 (eq? (car cal) 'calendar)))))
+                                 (eq? (car cal)'calendar)))))
 
-(define checkCal (lambda(cal)
-                   (if(not (isCalendar? cal)) (error "not a calendar")
-                      cal)))
+(define addToCal (lambda (calendar . app)
+                   (append calendar app)))
+
+;;Two calendars are the same if after they are flattenend they both contain the same appointments
+(define calEq? (lambda(cal1 cal2)
+                 (let ((flat-cal1 (flatten-calendar cal1))
+                       (flat-cal2 (flatten-calendar cal2)))
+                   (calEqH? (skipSymbol cal1) (skipSymbol cal2)))))
+
+(define calEqH? (lambda (cal1 cal2)
+                 (if(null? cal1) #t
+                    (and (appIn (car cal1) cal2) (calEqH? (cdr cal1) cal2)))))
+(define appIn (lambda(x lst)
+                (let ((filt-lst (filter (lambda(z)(isApp? z)) lst)))
+                  (if(null? filt-lst) #f
+                     (or (appEq? x (car filt-lst)) (appIn x (cdr filt-lst)))))))
+
+(define calIn (lambda(cal lst)
+                (let ((filt-lst (filter (lambda(x) (isCalendar? x)) lst)))
+                (if(null? filt-lst) #f
+                   (or (calEq? cal (car filt-lst)) (calIn cal (cdr filt-lst)))))))
+
 (define removeFromCal (lambda (cal . toRemove)
                         (removeFromCalH (skipSymbol (checkCal cal)) toRemove '())))
 
 
 (define removeFromCalH (lambda (cal removeLst res)
                          (cond ((null? cal) (createCalendar (reverse res)))
-                               ((and (isApp? (car cal)) (not(appIn (car cal) removeLst))) (removeFromCalH (cdr cal) removeLst (cons (car cal) res))) 
-                               ((isCalendar? (car cal)) (removeFromCalH (cdr cal) removeLst 
+                               ((and (isApp? (car cal))(not(appIn (car cal) removeLst))) (removeFromCalH (cdr cal) removeLst (cons (car cal) res))) 
+                               ((and (isCalendar?(car cal))(not(calIn(car cal) removeLst))) (removeFromCalH (cdr cal) removeLst 
                                                                         (cons (removeFromCalH (skipSymbol(car cal)) removeLst '()) res))) ;i use cadr to skip 'calendar
                                (else (removeFromCalH (cdr cal) removeLst res)))))
 
 
 
 (define flatten-calendar (lambda (cal)
-                           (createCalendar (flatten-calendarH (skipSymbol (checkCal cal))))))
+                           (createCalendar (flatten-calendarH (skipSymbol(checkCal cal))))))
   
 (define flatten-calendarH (lambda (cal)
                            (cond ((null? cal) '())
                                  ((isApp? (car cal)) (cons (car cal) (flatten-calendarH (cdr cal))))
                                  (else (append (flatten-calendarH (skipSymbol(car cal))) (flatten-calendarH (cdr cal)))))))
 
+
+;;; FIND FUNCTIONS
 (define find-appointment (lambda (cal pred)
                            (let ((flat-cal (skipSymbol(flatten-calendar cal))))
                            (filter (lambda(x) (pred x)) flat-cal))))
@@ -258,6 +271,7 @@
 (define find-first-appointment (generic-finder appointment-before))
 (define find-last-appointment (generic-finder appointment-after))
 
+;;; Overlap functions
 (define calendars-overlap? (lambda (cal1 cal2)
                       (calendars-overlapH? (skipSymbol(flatten-calendar cal1)) (skipSymbol(flatten-calendar cal2)))))
 
@@ -267,9 +281,7 @@
                                    (else #t))))
                                 
 
-(define appIn (lambda(x lst)
-             (if(null? lst) #f
-                (or (appEq? x (car lst)) (appIn x (cdr lst))))))
+
 ;;;;;;;;;
 ;;;
 ;;;
@@ -278,9 +290,46 @@
 ;;;
 ;;;;;;;;;
 
-;;calendars work on a weekly basis
+;; HTML STUFF 
+(define tag-creator (lambda (head) 
+             (lambda r
+                 (string-append "<" head (findAttribute r)">" (findContent r) "</" head ">"))))
+
+(define single-tag (lambda (head)
+                     (lambda r
+                       (string-append (findContent r) "<" head ">"))))
+
+(define findContent (lambda (lst)
+                      (cond ((null? lst) "")
+                            ((string? (car lst)) (string-append (car lst) (findContent (cdr lst))))
+                            ((procedure? (car lst)) (string-append ((car lst)) (findContent (cdr lst))))
+                            ((list? (car lst)) (string-append (findContent (car lst)) (findContent (cdr lst))))
+                            (else (findContent (list-tail lst 2))))))
+                        
+(define findAttribute (lambda (lst)
+                        (cond ((null? lst) "")
+                               ((symbol? (car lst)) (string-append " " ( symbol->string(car lst)) "=" (cadr lst) (findAttribute (list-tail lst 2))))
+                               (else (findAttribute (cdr lst))))))
+
+(define table (tag-creator "table"))
+(define tr (tag-creator "tr"))
+(define td (tag-creator "td"))
+(define html(tag-creator "html"))
+(define body (tag-creator "body"))
+(define htmltable (tag-creator "table"))
+(define b (tag-creator "b"))
+(define br(single-tag "br"))
+
+
+;;PRESENT STUFF
 (define present-calendar-html (lambda (cal from-time to-time)
-                                (present-calendar-htmlH (flatten-calendar cal) from-time to-time)))
+                                (let* ((flat-cal (flatten-calendar cal))
+                                       (relevant-apps (find-appointment flat-cal 
+                                                                        (lambda (app)(and (before-or-same (getStartTime app) to-time)
+                                                                                          (after-or-same (getStartTime app) from-time)))))
+                                       (relevant-cal (createCalendar relevant-apps)))
+                                  (if(before to-time from-time) (error "from-time needs to be smaller than to-time")
+                                (present-calendar-htmlH relevant-cal from-time to-time)))))
 
 
 (define present-calendar-htmlH (lambda (cal from-time to-time)
@@ -319,7 +368,7 @@
                     (cond ((or (= counter 0)(after from-time to-time)) (reverse res))
                           ((null? appstoday) (app-rowH (next-date from-time) to-time (- counter 1) (cons (td "&nbsp;") res) cal))
                           (else (app-rowH (next-date from-time) to-time (- counter 1) 
-                                          (cons (td (map br(map appointment->string appstoday))) res) cal))))))
+                                          (cons (td (map br (map appointment->string appstoday))) res) cal))))))
                           
 
 
@@ -328,15 +377,18 @@
 (define app1 (createAppointment "App1" (createTime 2015 11 11 11 11) (createTime 2015 11 11 12 30)))
 (define app2 (createAppointment "App2" (createTime 2015 12 12 12 12) (createTime 2015 12 12 17 22)))
 (define app3 (createAppointment "Juleaften" (createTime 2015 12 24 18 00) (createTime 2015 12 24 23 59)))
-(define app4 (createAppointment "JuleAftensDag" (createTime 2015 12 24 11 00) (createTime 2015 12 24 12 00)))
+(define app4 (createAppointment "Min fødselsdag" (createTime 2015 12 24 11 00) (createTime 2015 12 24 12 00)))
 
 (define calendar1 (createCalendar (list app1 app2 )))
 (define calendar2 (createCalendar (list calendar1 app1 app2 )))
 (define calendar3 (createCalendar (list (createAppointment "hejsa" (createTime 2012 11 11 11 11) (createTime 2012 11 11 11 11)))))
 (define calendar4 (createCalendar (list app3 app4)))
-(flatten-calendar calendar4)
-(present-calendar-html calendar4 (createTime 2015 12 1 0 0) (createTime 2015 12 31 0 0))
-(find-last-appointment calendar1 (lambda(x) #t))
+;(flatten-calendar calendar4)
+;(present-calendar-html calendar4 (createTime 2015 12 1 0 0) (createTime 2015 12 31 0 0))
+;(find-last-appointment calendar1 (lambda(x) #t))
+(removeFromCal calendar1 app1)
+(removeFromCal calendar2 app1)
+
 
 
 
